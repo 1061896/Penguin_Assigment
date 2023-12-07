@@ -1,0 +1,131 @@
+---
+title: "penguins_analysis"
+output: html_document
+date: "2023-12-07"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## QUESTION 2: Data Pipeline
+
+**Introduction**
+This project aims to understand whether there is a statistically significant correlation between culmen length (mm) and the three different penguin species, Adelie, Chinstrap and Gentoo. The project will make use of the palmerpenguins data set, yet in order to make reliable conclusions, this study will first clean the data set.
+```{r}
+# Setting a working directory:
+setwd("C:/Users/memon/OneDrive - Nexus365/Year 3/Computer Class/PenguinsAssingment")#Increase reproducibility as code is referencing files relative to the project root, making it more portable
+
+# Install required packages:
+install.packages(c("ggplot2", "palmerpenguins", "dplyr", "janitor", "svglite"))
+# Load the packages:
+library(ggplot2)
+library(palmerpenguins)
+library(dplyr)
+library(janitor)
+library(svglite)
+
+# Defining the cleaning function: cleaning column names by deleting the ones beginning with delta etc by using '-' and removing empty rows and columns
+cleaning <- function(penguins_data){
+  penguins_data %>%
+    clean_names() %>%
+    shorten_species() %>%
+    remove_empty(c("rows", "cols")) %>%
+    select(-starts_with("delta")) %>%
+    select(-comments)
+}
+
+## Cleaning the data set
+# Preserving the raw data in a file names "data_raw":
+dir.create("data_raw")
+write.csv(penguins_raw, "data_raw/penguins_raw.csv") #saving penguins_raw as a .csv file
+
+# Load the raw penguins data set:
+penguins_raw <- read.csv("data_raw/penguins_raw.csv")
+
+# Looking at the raw penguins data set to see what needs to be cleaned:
+head(penguins_raw)
+names(penguins_raw)
+#column names are not standardised and there are empty rows and columns that must be cleaned
+
+# Creating a functions folder:
+dir.create("functions")
+source("functions/cleaning.r") #loading cleaning.r file into this .rmd file
+
+# Calling the function to clean the raw penguins data set:
+penguins_clean <- cleaning(penguins_raw)
+# Checking that penguins_clean is clean: 
+names(penguins_clean) #check the column names in the new data frame 
+
+# Saving the clean data set:
+dir.create("data_clean") #creating a data_clean folder
+write.csv(penguins_clean, "data_clean/penguins_clean.csv")
+```
+
+*Exploratory Figure:*
+An exploratory figure is generated to help better visualise the data broadly and create basic questions which will help draw our hypothesis. To visualise our categorical variable (species) and our continuous variable (culmen length), a jitter plot will be used.
+```{r}
+# Calling the function to plot the figure:
+source("functions/plotting.R")
+jitterplot_figure <- jitter_plot(penguins_clean)
+jitterplot_figure #find the figure below 
+
+# Calling the function to save the figure in the figures file:
+dir.create("figures") #creating a figures file
+jitterplot_svg(penguins_clean, 
+                      "figures/jitterplot.svg", 
+                      size = 15, scaling = 1)
+```
+From this, we can observe that each species has a broad range of values that their culmen length takes on, particularly for the Adelie group. 
+
+
+**Hypothesis**\
+H~0~: None of the mean culmen lengths (mm) for the Adelie, Chinstrap and Gentoo species are significantly different from each other.\
+H~A~: At least one of the mean culmen lengths (mm) for the Adelie, Chinstrap and Gentoo species is significantly different from at least one of the other species.
+
+**Statistical Methods** A one-way ANOVA test will be performed to test the difference between the mean culmen length (mm) between the three species.
+```{r}
+# Fitting a linear model as ANOVA is a general linear model:
+lmmodel <- lm(culmen_length_mm ~ species, data = penguins_clean)
+summary(lmmodel)
+```
+The estimate shows us the mean culmen length (mm) for each species. The means are as follows: Adelie = 38.79 mm, Chinstrap = 48.83 mm and Gentoo = 47.50 mm. Just from knowing these means, we can start to make some predictions. It is more probabable that the Adelie mean culmen compared to the others length is more significantly different than the means of Chinstrap and Gentoo. Futher statistical analysis will inform this.
+
+```{r}
+# Performing an ANOVA test
+ANOVA_test <- aov(lmmodel)
+summary(ANOVA_test)
+```
+Hence, since the p-value for species is <0.05, at least 1 species' mean culmen depth (mm) significantly differs from at least 1 other species mean culmen depth (mm). To find out, a post-hoc analysis will be done.
+
+```{r}
+# Performing a post-hoc analysis: Tukey's Honest Significant Difference 
+Tukey_test <- TukeyHSD(ANOVA_test)
+print(Tukey_test)
+```
+The adjusted p-value informs us of whether the means our statistically different from each other. As the means of Chinstrap-Adelie and Gentoo-Adelie are <0.005, we can reject the null hypothesis. As previously assumed, the difference between the means of Gentoo and Chinstrap are not statistically significant.
+
+**Results & Discussion**
+The statistical analysis has allowed us to reject the null hypothesis and conclude that the mean culmen length of at least one species is statistically different from the mean of at least one. After conducting a post-hoc analysis we can confirm that is is the difference between the mean of Adelie species and the means of both Chinstrap and Gentoo are significantly different. 
+
+*Results Figure:*
+A results figure helps describe our results, in our case, a box plot will be used. 
+```{r}
+# Calling the function to plot the results figure:
+source("functions/plotting.R")
+boxplot_figure <- box_plot(penguins_clean)
+boxplot_figure
+# Calling the function to save the box plot figure in the figures file:
+boxplot_svg(penguins_clean, 
+                      "figures/boxplot.svg", 
+                      size = 15, scaling = 1)
+```
+Already from analysing the box plot, we can observe that the median length for Adelie is much lower than the other two species and lies outside the box of Chinstrap and Gentoo. However, both Chinstrap and Gentoo contain 2 and 4 outliers respectively and may impact the distribution of the data and thus the results. To increase the robustness of this analysis and for futher study, removing the outliers could be beneficial.
+
+*Discussion*
+Chinstrap penguins have the highest culmen length, followed by Gentoo then Adelie. While reasons for the are not entirely known, Adelie penguins are generally considered the smallest penguin by biomass in the Antarctic, as a result we may expect a relatively shorter culmen. Other possible explanations also include Adelie penguins feed on small fish and krill and build nests with stones. For this, a shorter beaker may be better adapted to picking up such small items.  
+
+Due to the lack of studies regarding culmen length in these species, further research into their diets, foraging behaviour, nesting behaviour and genetic analysis could provide more insight into the factors underpinning the variation in culmen length.  
+
+**Conclusion**
+In conclusion, there is a significant difference between the mean culmen length between Adelie and both other species, however there is not a significant difference between Chinstrap and Gentoo species. This may be attributed to different diets, genetics and behaviours however further study into such factors would provide a better and more reliable insight. 
